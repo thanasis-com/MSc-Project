@@ -9,6 +9,7 @@ from os import listdir
 from os.path import isfile, join
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from matplotlib.pyplot import plot, draw, show
 import time
 import nolearn
 import math
@@ -25,6 +26,7 @@ import skimage
 from skimage.transform import rotate
 from scipy import ndimage
 from matplotlib import gridspec
+import scipy.misc
 
 #import matplotlib
 #import matplotlib.pyplot as plt
@@ -375,7 +377,7 @@ def augmentImage(img, numOfTiles=4, overlap=False):
 def augmentImage1(img, numOfTiles=1):
 
 	#rotation angles
-	angles=[0, 90]
+	angles=[0, 90, 180, 270]
 
 	#get the size of the image
 	imgXsize=img.shape[0]
@@ -385,8 +387,8 @@ def augmentImage1(img, numOfTiles=1):
 	tileWidth=imgXsize
 	tileHeight=imgYsize
 
-	#preallocate space for the tiles (2 refers to the two different types of mirroring)
-	tiles=numpy.empty([numOfTiles*len(angles)*3, tileHeight, tileWidth])
+	#preallocate space for the tiles (2 refers to the two different types of mirroring) -4 refers to 180 and 270 degrees which are not to be mirrored
+	tiles=numpy.empty([numOfTiles*len(angles)*3-4, tileHeight, tileWidth])
 
 	bufferIndex=0
 	for i in angles:
@@ -399,7 +401,8 @@ def augmentImage1(img, numOfTiles=1):
 	#apply mirroring (left-right)
 	flipedImg=numpy.fliplr(img)
 
-	for i in angles:
+	#used to be for i in angles
+	for i in [0, 90]:
 		#rotate the image
 		tempImg=skimage.transform.rotate(flipedImg, i)
 		tiles[bufferIndex]=tempImg
@@ -408,7 +411,8 @@ def augmentImage1(img, numOfTiles=1):
 	#apply mirroring (up-down)
 	flipedImg=numpy.flipud(img)
 
-	for i in angles:
+	#used to be for i in angles
+	for i in [0, 90]:
 		#rotate the image
 		tempImg=skimage.transform.rotate(flipedImg, i)
 		tiles[bufferIndex]=tempImg
@@ -439,8 +443,8 @@ def augmentData(dataset, numOfTiles, overlap, imageWidth, imageHeight):
 		tileWidth=imageWidth
 		tileHeight=imageHeight
 
-	#preallocate space for the dataset (4 refers to the number of the rotation angles, 3 refers to the types of mirroring + the normal version)
-	augmented=numpy.empty([dataset.shape[0]*numOfTiles*2*3, tileWidth, tileHeight])
+	#preallocate space for the dataset (4 refers to the number of the rotation angles, 3 refers to the types of mirroring + the normal version) replace 8 with 2*3
+	augmented=numpy.empty([dataset.shape[0]*numOfTiles*8, tileWidth, tileHeight])
 
 	bufferIndex=0
 	for i in range(dataset.shape[0]):
@@ -578,25 +582,28 @@ def createNN(data_size, X, Y, valX, valY, epochs, n_batches, batch_size, learnin
 	#the rest of the network structure
 	#net['conv00000'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['data'], num_filters=30, filter_size=7))
 	#net['conv0000'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['conv00000'], num_filters=30, filter_size=6))
-	#net['conv000'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['conv0000'], num_filters=30, filter_size=6))
+	#net['conv000'] = lasagne.layers.batch_norm((lasagne.layers.Conv2DLayer(net['conv0000'], num_filters=30, filter_size=6))
 	#net['conv00'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['data'], num_filters=35, filter_size=6))
 	#net['conv0'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['conv00'], num_filters=35, filter_size=6))
-	net['conv1'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['data'], num_filters=32, filter_size=5))
+	#W=lasagne.utils.create_param(spec=np.repeat(np.array([[2, 1, 0, -1, -2], [3, 2, 0, -2, -3], [4, 3, 0, -3, -4], [3, 2, 0, -2, -3], [2, 1, 0, -1, -2]], np.float32),32).reshape(32, 1, 5, 5), shape=(32, 1, 5, 5)
+	net['conv1'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['data'], num_filters=32, filter_size=11))
 	net['pool1'] = lasagne.layers.Pool2DLayer(net['conv1'], pool_size=2)
-	net['conv2'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool1'], num_filters=32, filter_size=5))
+	net['conv2'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool1'], num_filters=32, filter_size=9))
 	net['pool2'] = lasagne.layers.Pool2DLayer(net['conv2'], pool_size=2)
-	net['conv3'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool2'], num_filters=32, filter_size=5))
+	net['conv3'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool2'], num_filters=32, filter_size=7))
 	net['pool3'] = lasagne.layers.Pool2DLayer(net['conv3'], pool_size=2)
 	net['conv4'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool3'], num_filters=32, filter_size=5))
-	net['deconv4']= lasagne.layers.batch_norm(myClasses.Deconv2DLayer(net['conv4'], num_filters=32, filter_size=5))
+	#net['drop'] = DropoutLayer(net['conv4'], p=0.4)
+	net['deconv4']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['conv4'], num_filters=32, filter_size=5))
 	net['unpool3']= lasagne.layers.InverseLayer(net['deconv4'], net['pool3'])
-	net['deconv3']= lasagne.layers.batch_norm(myClasses.Deconv2DLayer(net['unpool3'], num_filters=32, filter_size=5))
+	net['deconv3']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['unpool3'], num_filters=32, filter_size=7))
 	net['unpool2']= lasagne.layers.InverseLayer(net['deconv3'], net['pool2'])
-	net['deconv2']= lasagne.layers.batch_norm(myClasses.Deconv2DLayer(net['unpool2'], num_filters=32, filter_size=5))
+	net['deconv2']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['unpool2'], num_filters=32, filter_size=9))
 	net['unpool1']= lasagne.layers.InverseLayer(net['deconv2'], net['pool1'])
-	net['deconv1']= lasagne.layers.batch_norm(myClasses.Deconv2DLayer(net['unpool1'], num_filters=32, filter_size=5))
-	net['output']= lasagne.layers.batch_norm(myClasses.Deconv2DLayer(net['deconv1'], num_filters=1, filter_size=1, nonlinearity=lasagne.nonlinearities.sigmoid))
-
+	net['deconv1']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['unpool1'], num_filters=32, filter_size=11))
+	#net['deconv11']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['deconv1'], num_filters=1, filter_size=5, crop='same'))
+	#net['deconv111']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['deconv11'], num_filters=1, filter_size=5, crop='same'))
+	net['output']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['deconv1'], num_filters=1, filter_size=1, nonlinearity=lasagne.nonlinearities.sigmoid))
 
 
 	print('--------------------')
@@ -613,7 +620,7 @@ def createNN(data_size, X, Y, valX, valY, epochs, n_batches, batch_size, learnin
 	print('\nThe total number of trainable parameters is %d' % (lasagne.layers.count_params(net['output'])))
 	print('\nTraining on %d images' % (X.shape[0]))
 
-	#with np.load('model.npz') as f:
+	#with np.load('toFinal11to5140epochs0162.npz') as f:
 	#	param_values = [f['arr_%d' % i] for i in range(len(f.files))]
 
 	#lasagne.layers.set_all_param_values(net['output'], param_values)
@@ -690,6 +697,12 @@ def createNN(data_size, X, Y, valX, valY, epochs, n_batches, batch_size, learnin
 		test_cost = np.float32(test_cost/valX.shape[0])
 		epoch_time_end = time.time()
 		print('Epoch %d/%d, train error: %f, val error: %f. Elapsed time: %.2f s' % (epoch+1, epochs, epoch_cost, test_cost, epoch_time_end-epoch_time_start))
+
+		if epoch in [2, 5, 10, 20, 40, 80, 120, 140]:
+			tempPrediction=get_preds(np.reshape(valX[1,:,:,:], (1,1,valX.shape[2],valX.shape[3])))
+
+
+			scipy.misc.imsave('trainingMovie/outfile'+str(epoch)+'.jpg', tempPrediction[0][0])
 
 	end_time = time.time()
 	print('Training completed in %.2f seconds.' % (end_time - start_time))
@@ -960,21 +973,24 @@ def createPretrainedNN2(data_size, filters, modelFile):
 	#net['conv000'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['conv0000'], num_filters=30, filter_size=6))
 	#net['conv00'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['data'], num_filters=35, filter_size=6))
 	#net['conv0'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['conv00'], num_filters=35, filter_size=6))
-	net['conv1'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['data'], num_filters=filters, filter_size=5))
+	net['conv1'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['data'], num_filters=32, filter_size=11))
 	net['pool1'] = lasagne.layers.Pool2DLayer(net['conv1'], pool_size=2)
-	net['conv2'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool1'], num_filters=filters, filter_size=5))
+	net['conv2'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool1'], num_filters=32, filter_size=9))
 	net['pool2'] = lasagne.layers.Pool2DLayer(net['conv2'], pool_size=2)
-	net['conv3'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool2'], num_filters=filters, filter_size=5))
-	net['pool3'] = lasagne.layers.Pool2DLayer(net['conv3'], pool_size=2)
-	net['conv4'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool3'], num_filters=filters, filter_size=5))
-	net['deconv4']= lasagne.layers.batch_norm(myClasses.Deconv2DLayer(net['conv4'], num_filters=filters, filter_size=5))
-	net['unpool3']= lasagne.layers.InverseLayer(net['deconv4'], net['pool3'])
-	net['deconv3']= lasagne.layers.batch_norm(myClasses.Deconv2DLayer(net['unpool3'], num_filters=filters, filter_size=5))
+	net['conv3'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool2'], num_filters=32, filter_size=7))
+	#net['pool3'] = lasagne.layers.Pool2DLayer(net['conv3'], pool_size=2)
+	#net['conv4'] = lasagne.layers.batch_norm(lasagne.layers.Conv2DLayer(net['pool3'], num_filters=32, filter_size=5))
+	#net['drop'] = DropoutLayer(net['conv4'], p=0.4)
+	#net['deconv4']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['conv4'], num_filters=32, filter_size=5))
+	#net['unpool3']= lasagne.layers.InverseLayer(net['deconv4'], net['pool3'])
+	net['deconv3']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['conv3'], num_filters=32, filter_size=7))
 	net['unpool2']= lasagne.layers.InverseLayer(net['deconv3'], net['pool2'])
-	net['deconv2']= lasagne.layers.batch_norm(myClasses.Deconv2DLayer(net['unpool2'], num_filters=filters, filter_size=5))
+	net['deconv2']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['unpool2'], num_filters=32, filter_size=9))
 	net['unpool1']= lasagne.layers.InverseLayer(net['deconv2'], net['pool1'])
-	net['deconv1']= lasagne.layers.batch_norm(myClasses.Deconv2DLayer(net['unpool1'], num_filters=filters, filter_size=5))
-	net['output']= lasagne.layers.batch_norm(myClasses.Deconv2DLayer(net['deconv1'], num_filters=1, filter_size=1, nonlinearity=lasagne.nonlinearities.sigmoid))
+	net['deconv1']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['unpool1'], num_filters=32, filter_size=11))
+	#net['deconv11']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['deconv1'], num_filters=1, filter_size=5, crop='same'))
+	#net['deconv111']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['deconv11'], num_filters=1, filter_size=5, crop='same'))
+	net['output']= lasagne.layers.batch_norm(lasagne.layers.Deconv2DLayer(net['deconv1'], num_filters=1, filter_size=1, nonlinearity=lasagne.nonlinearities.sigmoid))
 
 	with np.load(modelFile) as f:
 		param_values = [f['arr_%d' % i] for i in range(len(f.files))]
@@ -989,7 +1005,7 @@ def createPretrainedNN2(data_size, filters, modelFile):
 	get_preds = theano.function([input_var], test_prediction)
 
 	allLayers=lasagne.layers.get_all_layers(net['output'])
-	#layer = allLayers[1]
+	#layer = allLayers[16]
 	#W = layer.W.get_value()
 	#b = layer.b.get_value()
 	#f = [w + bb for w, bb in zip(W, b)]
@@ -1002,6 +1018,7 @@ def createPretrainedNN2(data_size, filters, modelFile):
 	#	ax.set_xticks([])
 	#	ax.set_yticks([])
 	#	ax.imshow(W[i][0],interpolation='nearest',cmap=cm.binary)
+    #    plt.show(gs)
 	#plt.show(gs)
 	#for each layer print the resulted filters
 	#for l in xrange(len(allLayers)):
@@ -1118,7 +1135,7 @@ def myCrossEntropy(predictions, targets):
 
 	#myFactor=T.sum(predictions>0.3 and predictions<0.7)/T.sum(predictions<2.0)
 
-	return -1*targets*T.log(predictions)*1.0+(-1)*(1-targets)*T.log(1-predictions)*0.5
+	return -1*targets*T.log(predictions)*1.0+(-1)*(1-targets)*T.log(1-predictions)*1.0
 
 
 def myTestCrossEntropy(predictions, targets):

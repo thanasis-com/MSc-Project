@@ -64,10 +64,10 @@ dataSet=dataSet-imageMeans
 ### MASKS
 masks=myTools.loadImages('../../masksExpertBig', 850, 850, 1)
 
-masks[masks>0]=1
+masks[masks<=50]=0
+masks[masks>50]=1
 
 masks=masks.astype(numpy.float32)
-
 #masks=myTools.dt(masks, 20)
 
 masks=myTools.augmentData(masks, numOfTiles=1, overlap=False, imageWidth=850, imageHeight=850)
@@ -88,7 +88,8 @@ imgsWidth, imgsHeight =train[0][0].shape
 
 data_size=(None,1,imgsWidth,imgsHeight)
 
-numOfBatches=43
+#43 for 172 images. 57 for 229 images - to retain 4 image batch
+numOfBatches=57
 batchSize=int(math.floor(train.shape[0]/numOfBatches))
 
 

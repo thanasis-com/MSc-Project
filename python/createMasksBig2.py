@@ -44,7 +44,7 @@ myNet=myTools.createPretrainedNN2(data_size, modelFile=modelFilename, filters=nu
 #make predictions for the image
 res=myNet(image)
 #crop the center of the mask
-res=myTools.cropCenter(res, 80)
+res=myTools.cropCenter(res, 83.1)
 
 
 plt.show(plt.imshow(res[0][0], cmap=cm.binary))
